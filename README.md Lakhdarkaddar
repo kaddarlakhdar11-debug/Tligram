@@ -1,1 +1,84 @@
 
+import os
+from datetime import datetime
+import telebot
+from telebot import types
+
+# ================== التوكن هنا ==================
+TOKEN = "8645051982:AAGDtaDYUpbzLFbM2oJ5JBldtxnOMUrnvEg"
+# ================================================
+
+bot = telebot.TeleBot(TOKEN)
+
+# مجلد حفظ الصور
+PHOTOS_DIR = "saved_photos"
+os.makedirs(PHOTOS_DIR, exist_ok=True)
+
+# ================== أوامر البوت ==================
+
+@bot.message_handler(commands=['start'])
+def welcome(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup.add("استخراج الصور", "عدد الصور", "مسح كل الصور")
+
+    bot.send_message(message.chat.id, 
+        "👋 مرحباً بك في بوت حفظ الصور!\n\n"
+        "أرسل لي أي صورة وسأخزنها تلقائياً.\n"
+        "استخدم الأزرار أدناه للتحكم:", 
+        reply_markup=markup)
+
+@bot.message_handler(content_types=['photo'])
+def save_photo(message):
+    try:
+        photo = message.photo[-1]
+        file_info = bot.get_file(photo.file_id)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"photo_{timestamp}.jpg"
+        filepath = os.path.join(PHOTOS_DIR, filename)
+
+        downloaded = bot.download_file(file_info.file_path)
+        
+        with open(filepath, 'wb') as f:
+            f.write(downloaded)
+
+        bot.reply_to(message, f"✅ تم حفظ الصورة بنجاح!\n📁 {filename}")
+    
+    except:
+        bot.reply_to(message, "❌ حدث خطأ أثناء حفظ الصورة.")
+
+@bot.message_handler(func=lambda msg: msg.text in ["استخراج الصور", "استخراج"])
+def extract_photos(message):
+    photos = [f for f in os.listdir(PHOTOS_DIR) if f.endswith(('.jpg', '.jpeg', '.png'))]
+    
+    if not photos:
+        bot.reply_to(message, "📭 لا توجد صور مخزنة حالياً.")
+        return
+
+    bot.reply_to(message, f"📤 جاري إرسال {len(photos)} صورة...")
+
+    for filename in sorted(photos):
+        try:
+            with open(os.path.join(PHOTOS_DIR, filename), 'rb') as photo:
+                bot.send_photo(message.chat.id, photo, caption=filename)
+        except:
+            continue
+
+@bot.message_handler(func=lambda msg: msg.text == "عدد الصور")
+def count_photos(message):
+    count = len([f for f in os.listdir(PHOTOS_DIR) if f.endswith(('.jpg', '.jpeg', '.png'))])
+    bot.reply_to(message, f"🖼 عدد الصور المخزنة: **{count}**")
+
+@bot.message_handler(func=lambda msg: msg.text == "مسح كل الصور")
+def clear_photos(message):
+    try:
+        for file in os.listdir(PHOTOS_DIR):
+            os.remove(os.path.join(PHOTOS_DIR, file))
+        bot.reply_to(message, "🗑️ تم حذف جميع الصور بنجاح.")
+    except:
+        bot.reply_to(message, "❌ حدث خطأ أثناء الحذف.")
+
+# ================== تشغيل البوت ==================
+print("✅ البوت يعمل الآن...")
+print("يمكنك تجربته الآن على t.me/kaddar_ai_helper_bot")
+bot.infinity_polling()
